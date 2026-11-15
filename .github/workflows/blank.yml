@@ -1,36 +1,54 @@
-# This is a basic workflow to help you get started with Actions
+name: Auto Generate Toffee Playlist
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+permissions:
+  contents: write
+
 jobs:
-  # This workflow contains a single job called "build"
   build:
-    # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
 
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Install Dependencies
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          python -m pip install --upgrade pip
+          pip install requests
+
+      - name: Fetch Python Script from Private Repo
+        run: |
+          git clone https://${{ secrets.GH_PAT }}@github.com/${{ secrets.SECRET_REPO_NAME }}.git private_code
+          cp private_code/scripts/toffee_sm.py .
+          rm -rf private_code
+
+      - name: Run Main Script
+        env:
+          BEARER_TOKEN: ${{ secrets.BEARER_TOKEN }}
+        run: python toffee_sm.py
+
+      - name: Remove Python Script
+        run: rm -f toffee_sm.py
+
+      - name: Commit and Push Changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+          git add toffee_playlist.m3u toffee_data.json
+
+          if git diff --cached --quiet; then
+            echo "No changes detected."
+            exit 0
+          fi
+
+          git commit -m "Auto Updated: $(date +'%Y-%m-%d %r')"
+          git push

@@ -1,23 +1,26 @@
-name: Toffee Playlist Auto Sync
+name: Toffee Hybrid Auto Update
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
       - main
     paths:
       - toffee_playlist.m3u
 
-  workflow_dispatch:
+  schedule:
+     - cron: "*/20 * * * *"
 
 permissions:
   contents: write
 
 concurrency:
-  group: toffee-sync
+  group: toffee-hybrid-update
   cancel-in-progress: false
 
 jobs:
-  sync:
+  update:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,9 +30,9 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Sync M3U to JSON
+      - name: Run Playlist Sync
         run: python scripts/sync_playlist.py
 
       - name: Commit JSON Changes
@@ -40,7 +43,7 @@ jobs:
           git add toffee_data.json
 
           if ! git diff --cached --quiet; then
-            git commit -m "Auto sync Toffee playlist JSON"
+            git commit -m "Auto sync Toffee playlist"
             git push
           else
             echo "No JSON changes detected"

@@ -2,9 +2,7 @@ name: Toffee Playlist Auto Sync
 
 on:
   workflow_dispatch:
-
   schedule:
-    # Runs every 20 minutes (UTC)
     - cron: '7,27,47 * * * *'
 
 permissions:

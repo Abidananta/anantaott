@@ -1,12 +1,16 @@
-name: Auto Update Toffee Playlist
+name: Toffee Playlist Auto Sync
 
 on:
-  schedule:
-    - cron: "*/20 * * * *"
   workflow_dispatch:
+  schedule:
+  - cron: "*/20 * * * *"
 
 permissions:
   contents: write
+
+concurrency:
+  group: toffee-sync
+  cancel-in-progress: false
 
 jobs:
   update:
@@ -19,21 +23,48 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
-      - name: Install Dependencies
-        run: pip install requests
-
-      - name: Run Playlist Updater
-        run: python tf.py
-
-      - name: Commit and Push Changes
+      - name: Download Playlist
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          python -m pip install requests
 
-          git add toffee.m3u
+          python - <<'PY'
+          import requests
 
-          git diff --staged --quiet || git commit -m "Auto update toffee playlist"
+          url = (
+            "https://raw.githubusercontent.com/"
+            "sm-monirulislam/Toffee-Auto-Update/"
+            "refs/heads/main/toffee_playlist.m3u"
+          )
 
-          git push
+          r = requests.get(url, timeout=30)
+          r.raise_for_status()
+
+          content = r.text
+
+          if not content.startswith("#EXTM3U"):
+              raise RuntimeError("Invalid M3U playlist")
+
+          if "#EXTINF" not in content:
+              raise RuntimeError("No channels found")
+
+          with open("toffee_playlist.m3u", "w", encoding="utf-8") as f:
+              f.write(content)
+
+          print("Playlist downloaded successfully")
+          PY
+
+      - name: Commit Playlist
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add toffee_playlist.m3u
+
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto update Toffee playlist"
+            git push
+          else
+            echo "No playlist changes"
+          fi

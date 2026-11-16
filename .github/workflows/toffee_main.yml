@@ -1,57 +1,70 @@
-name: Auto Generate Toffee Playlist
+name: Toffee Playlist Auto Sync
 
 on:
   workflow_dispatch:
-
   schedule:
-    - cron: '0 */1 * * *'
+    - cron: '0 */4 * * *'
 
 permissions:
   contents: write
 
+concurrency:
+  group: toffee-sync
+  cancel-in-progress: false
+
 jobs:
-  build:
+  update:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: '3.11'
 
-      - name: Install Dependencies
+      - name: Download Playlist
         run: |
-          python -m pip install --upgrade pip
-          pip install requests
+          python -m pip install requests
 
-      - name: Fetch Python Script from Private Repo
+          python - <<'PY'
+          import requests
+
+          url = (
+            "https://raw.githubusercontent.com/"
+            "sm-monirulislam/Toffee-Auto-Update/"
+            "refs/heads/main/toffee_playlist.m3u"
+          )
+
+          r = requests.get(url, timeout=30)
+          r.raise_for_status()
+
+          content = r.text
+
+          if not content.startswith("#EXTM3U"):
+              raise RuntimeError("Invalid M3U playlist")
+
+          if "#EXTINF" not in content:
+              raise RuntimeError("No channels found")
+
+          with open("toffee_playlist.m3u", "w", encoding="utf-8") as f:
+              f.write(content)
+
+          print("Playlist downloaded successfully")
+          PY
+
+      - name: Commit Playlist
         run: |
-          git clone https://${{ secrets.GH_PAT }}@github.com/${{ secrets.SECRET_REPO_NAME }}.git private_code
-          cp private_code/scripts/toffee_sm.py .
-          rm -rf private_code
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Run Main Script
-        env:
-          BEARER_TOKEN: ${{ secrets.BEARER_TOKEN }}
-        run: python toffee_sm.py
+          git add toffee_playlist.m3u
 
-      - name: Remove Python Script
-        run: rm -f toffee_sm.py
-
-      - name: Commit and Push Changes
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-
-          git add toffee_playlist.m3u toffee_data.json
-
-          if git diff --cached --quiet; then
-            echo "No changes detected."
-            exit 0
+          if ! git diff --cached --quiet; then
+            git commit -m "Auto update Toffee playlist"
+            git push
+          else
+            echo "No playlist changes"
           fi
-
-          git commit -m "Auto Updated: $(date +'%Y-%m-%d %r')"
-          git push

@@ -1,44 +1,104 @@
-name: Toffee Playlist Auto Updater
+name: Toffee Playlist Auto Sync
 
 on:
-
-
   workflow_dispatch:
+  
+  schedule:
+    - cron: '11,31,51 * * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: toffee-sync
+  cancel-in-progress: false
 
 jobs:
-  update-playlist:
+  update:
+    name: Download and Update Playlist
     runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
-      - name: Checkout Public Repository
+      # Step 1: Checkout your repository
+      - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN }}
+          ref: main
+          fetch-depth: 0
 
-      - name: Checkout Private Repository
-        uses: actions/checkout@v4
+      # Step 2: Setup Python
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          repository: srhady/axsportspvt
-          token: ${{ secrets.PAT_TOKEN }}
-          path: private_script_dir
+          python-version: '3.11'
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
-      - name: Move Script to Root
+      # Step 3: Download latest source playlist
+      - name: Download Playlist
         run: |
-          cp private_script_dir/toffee_extractor.py .
-          rm -rf private_script_dir
+          python -m pip install requests
 
-      - name: Run Toffee Extractor Script
-        run: python toffee_extractor.py
+          python - <<'PY'
+          import requests
+          import sys
 
-      - name: Commit and Push Changes
+          url = (
+              "https://raw.githubusercontent.com/"
+              "sm-monirulislam/Toffee-Auto-Update/"
+              "refs/heads/main/toffee_playlist.m3u"
+          )
+
+          print("Downloading Toffee playlist...")
+
+          response = requests.get(
+              url,
+              timeout=60,
+              headers={"User-Agent": "Ananta-OTT-Playlist-Sync"}
+          )
+
+          response.raise_for_status()
+
+          content = response.text.lstrip("\ufeff")
+
+          if not content.lstrip().startswith("#EXTM3U"):
+              raise RuntimeError("Invalid M3U playlist")
+
+          if "#EXTINF" not in content:
+              raise RuntimeError("No channels found")
+
+          channel_count = content.count("#EXTINF")
+
+          if channel_count < 1:
+              raise RuntimeError("Playlist is empty")
+
+          with open(
+              "toffee_playlist.m3u",
+              "w",
+              encoding="utf-8"
+          ) as file:
+              file.write(content)
+
+          print(f"Download successful: {channel_count} channels")
+          PY
+
+      # Step 4: Commit and push changes
+      - name: Commit Playlist
         run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add toffee_playlist.json toffee_playlist.m3u
-          git commit -m "Auto Update Toffee Playlist" || exit 0
-          git push
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add toffee_playlist.m3u
+
+          if git diff --cached --quiet; then
+            echo "No playlist changes detected."
+          else
+            git commit -m "Auto update Toffee playlist"
+            git push origin HEAD:main
+            echo "Playlist updated successfully."
+          fi
+
+      # Step 5: Final status
+      - name: Sync Status
+        if: success()
+        run: |
+          echo "Toffee Playlist Sync completed successfully."

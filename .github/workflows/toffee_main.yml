@@ -1,9 +1,8 @@
-
 name: Toffee Playlist Auto Sync
 
 on:
   workflow_dispatch:
-
+  
   schedule:
     - cron: '11,31,51 * * * *'
 
@@ -21,7 +20,7 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      # Step 1: Checkout repository
+      # Step 1: Checkout your repository
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
@@ -34,13 +33,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3: Download latest Toffee playlist
+      # Step 3: Download latest source playlist
       - name: Download Playlist
         run: |
           python -m pip install requests
 
           python - <<'PY'
           import requests
+          import sys
 
           url = (
               "https://raw.githubusercontent.com/"
@@ -57,10 +57,14 @@ jobs:
           )
 
           response.raise_for_status()
+
           content = response.text.lstrip("\ufeff")
 
           if not content.lstrip().startswith("#EXTM3U"):
               raise RuntimeError("Invalid M3U playlist")
+
+          if "#EXTINF" not in content:
+              raise RuntimeError("No channels found")
 
           channel_count = content.count("#EXTINF")
 
@@ -77,34 +81,7 @@ jobs:
           print(f"Download successful: {channel_count} channels")
           PY
 
-      # Step 4: Upload playlist to Cloudflare KV
-      - name: Upload Playlist to Cloudflare KV
-        shell: bash
-        env:
-          CF_WORKER_URL: ${{ secrets.CF_WORKER_URL }}
-          CF_UPLOAD_TOKEN: ${{ secrets.CF_UPLOAD_TOKEN }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "$CF_WORKER_URL" || -z "$CF_UPLOAD_TOKEN" ]]; then
-            echo "Missing Cloudflare GitHub Secrets."
-            exit 1
-          fi
-
-          WORKER_URL="${CF_WORKER_URL%/}"
-
-          echo "Uploading playlist to Cloudflare KV..."
-
-          curl --fail-with-body --silent --show-error \
-            --max-time 120 \
-            -X POST "${WORKER_URL}/upload" \
-            -H "Authorization: Bearer ${CF_UPLOAD_TOKEN}" \
-            -H "Content-Type: audio/x-mpegurl" \
-            --data-binary @toffee_playlist.m3u
-
-          echo "Cloudflare KV upload successful."
-
-      # Step 5: Commit and push changes
+      # Step 4: Commit and push changes
       - name: Commit Playlist
         run: |
           git config user.name "github-actions[bot]"
@@ -120,8 +97,8 @@ jobs:
             echo "Playlist updated successfully."
           fi
 
-      # Step 6: Final status
+      # Step 5: Final status
       - name: Sync Status
         if: success()
         run: |
-          echo "Toffee Playlist and Cloudflare KV Sync completed successfully."
+          echo "Toffee Playlist Sync completed successfully."

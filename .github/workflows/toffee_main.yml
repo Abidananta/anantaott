@@ -72,7 +72,7 @@ jobs:
               raise RuntimeError("Playlist is empty")
 
           with open(
-              "toffee_playlist.m3u",
+              "a_playlist.m3u",
               "w",
               encoding="utf-8"
           ) as file:
@@ -87,7 +87,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git add toffee_playlist.m3u
+          git add a_playlist.m3u
 
           if git diff --cached --quiet; then
             echo "No playlist changes detected."

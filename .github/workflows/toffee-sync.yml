@@ -2,8 +2,9 @@ name: Toffee Playlist Auto Sync
 
 on:
   workflow_dispatch:
+  
   schedule:
- - cron: '11,31,51 * * * *'
+    - cron: '11,31,51 * * * *'
 
 permissions:
   contents: write

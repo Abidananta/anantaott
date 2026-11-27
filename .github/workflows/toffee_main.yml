@@ -97,6 +97,17 @@ jobs:
             echo "Playlist updated successfully."
           fi
 
+      - name: Upload playlist to Cloudflare
+        env:
+          CF_WORKER_URL: ${{ secrets.CF_WORKER_URL }}
+          CF_UPLOAD_TOKEN: ${{ secrets.CF_UPLOAD_TOKEN }}
+        run: |
+          curl --fail-with-body -X POST \
+            "$CF_WORKER_URL/upload" \
+            -H "Authorization: Bearer $CF_UPLOAD_TOKEN" \
+            -H "Content-Type: application/vnd.apple.mpegurl" \
+            --data-binary @toffee_playlist.m3u
+
       # Step 5: Final status
       - name: Sync Status
         if: success()

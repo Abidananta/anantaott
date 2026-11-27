@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   
   schedule:
-    - cron: '7,27,37,47,57 * * * *'
+    - cron: '11,31,51 * * * *'
 
 permissions:
   contents: write
@@ -107,7 +107,7 @@ jobs:
             -H "Authorization: Bearer $CF_UPLOAD_TOKEN" \
             -H "Content-Type: application/vnd.apple.mpegurl" \
             --data-binary @toffee_playlist.m3u
-
+            
       # Step 5: Final status
       - name: Sync Status
         if: success()
